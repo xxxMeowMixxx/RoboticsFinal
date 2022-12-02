@@ -72,9 +72,11 @@ lidar.enablePointCloud()
 display = robot.getDevice("display")
 
 # Odometry
-pose_x     = 0
-pose_y     = 0
+pose_x     = -4.79645360826846
+pose_y     = -0.0005497518444407955
+tracker     = 0.0005497518444407955
 pose_theta = 0
+pose_theta2 = 0
 
 vL = 0
 vR = 0
@@ -137,7 +139,7 @@ print(my_chain.links)
 # Helper Functions
 
 #kenimatic calculator 
-#Pass a target in the for [x(forward/backwards),y(side to side),z(up/down)] 
+#Pass a target in the form [x(forward/backwards),y(side to side),z(up/down)] 
 #Drake Morley
 #using 
 #pip install git+https://github.com/alters-mit/ikpy.git#egg=ikpy
@@ -164,17 +166,62 @@ def kenimaticsToTarget(target):
             robot.getDevice(my_chain.links[res].name).setPosition(ikResults[res])
     print(ikResults)
     return(ikResults)
-
+#kenimatic helper
+#Drake Morley
+# takes in: target in form [x(forward/backwards),y(side to side),z(up/down)] see above
+#returns: NONE
+# helper for kenimaticsToTarget. If you want to put waypoints I recomend doing it here or in main
+# calling .inverse_kinematics at every step will lag the computer
 def armController(target1):
     currentplan = kenimaticsToTarget(target1)
+    
+    
+def doOdomatry(vL, vR, pose_x, tracker, pose_theta):
+    new_vL = vL
+    vL = vL/MAX_SPEED * MAX_SPEED_MS
+    new_vR = vR
+    vR = vR/MAX_SPEED * MAX_SPEED_MS
+    
+    r = (MAX_SPEED_MS)/MAX_SPEED
+    
+    fSpeed = (vR/r) * (r/2) + (vL/r) * (r/2)
+    rSpeed = (vR/r) * (r/AXLE_LENGTH) - (vL/r) * (r/AXLE_LENGTH)
+    
+    timestepsec = timestep/1000 #seconds
 
+    i_theta_change = (timestepsec * rSpeed)
+    i_x_change = timestepsec * (fSpeed * math.cos(pose_theta))
+    i_y_change = timestepsec * (fSpeed * math.sin(pose_theta))
+    
+    # update step
+    pose_x += i_x_change
+    tracker += i_y_change
+    pose_theta -= i_theta_change/2
+    pose_y= -tracker
+    if pose_theta < 0:
+        pose_theta = pose_theta+6.28319
+    
+    n = compass.getValues()
+    rad = ((math.atan2(n[1], n[0])-1.5708))#-1.5708)
+    if rad < 0:
+        rad = rad+6.28319
+    gpsPose_y = gps.getValues()[1]
+    gpsPose_x = gps.getValues()[0]
     
     
-robot_parts["torso_lift_joint"].setPosition(0.1)
+    if (abs(rad - pose_theta) > .05):#the odomatry works but due to me wanting to jam buttons
+        pose_theta=rad               #in manual mode this has been added
+                                     #feel free to comment out but be gental
+    # print(gpsPose_x, gpsPose_y, rad)
+    # print("pose",pose_x,pose_y,pose_theta)
+    return pose_x,pose_y,pose_theta,tracker
+
+
 
 # Main Loop
+robot_parts["torso_lift_joint"].setPosition(0.1)
 gripper_status="open"
-currentPlan = list()
+
 while robot.step(timestep) != -1:
     target = [.7,0,.5]
     overBasketTarget = [.3,0,.5]
@@ -217,8 +264,8 @@ while robot.step(timestep) != -1:
     else: # slow down
         vL *= 0.75
         vR *= 0.75
-
     
+    Tpose_x,Tpose_y,Tpose_theta,tracker = doOdomatry(vL,vR,pose_x,tracker,pose_theta)
+    pose_x,pose_y,pose_theta = Tpose_x,Tpose_y,Tpose_theta
     robot_parts["wheel_left_joint"].setVelocity(vL)
     robot_parts["wheel_right_joint"].setVelocity(vR)
-   
