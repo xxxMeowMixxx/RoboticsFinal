@@ -91,7 +91,7 @@ print("done init")
 
 
 
-#Drake Init
+#Drake Morley Init sensors
 sensors = ( #position sensors
 "arm_1_joint_sensor",
 "arm_2_joint_sensor",
@@ -109,6 +109,12 @@ sensors = ( #position sensors
 "wheel_right_joint_sensor")
 keyboard = robot.getKeyboard()
 keyboard.enable(timestep)
+
+
+#setUpchains
+#Drake Morley
+#on initilization read the urdf file to creata  series of chains to do kenimatics with
+#---------------------------------------------------------------------------------------
 base_elements=["base_link", "base_link_Torso_joint", "Torso", "torso_lift_joint", "torso_lift_link", "torso_lift_link_TIAGo front arm_11367_joint", "TIAGo front arm_11367"]
 
 my_chain = Chain.from_urdf_file("robot_urdf.urdf", last_link_vector=[0.004, 0,-0.1741], base_elements=["base_link", "base_link_Torso_joint", "Torso", "torso_lift_joint", "torso_lift_link", "torso_lift_link_TIAGo front arm_11367_joint", "TIAGo front arm_11367"])
@@ -135,15 +141,24 @@ for linkObj in my_chain.links:
         motors.append(motor)
 print(motors)
 print(my_chain.links)
-# ------------------------------------------------------------------
+#---------------------------------------------------------------------------------------
+#END of setup for kenimatics
+# --------------------------------------------------------------------------------------
 # Helper Functions
 
-#kenimatic calculator 
-#Pass a target in the form [x(forward/backwards),y(side to side),z(up/down)] 
+
+
+
+
+#kenimatic calculator ------------------------------------------------------------------
 #Drake Morley
 #using 
 #pip install git+https://github.com/alters-mit/ikpy.git#egg=ikpy
 #refferenced from https://gist.github.com/ItsMichal/4a8fcb330d04f2ccba582286344dd9a7
+
+#Pass a target in the form [x(forward/backwards),y(side to side),z(up/down)] 
+
+#RETURNS: NONE
 
 #to kenimaticsToTarget to calculate and set the position of where the motors need to go
 #the motors then get there desired postion set to that
@@ -166,16 +181,40 @@ def kenimaticsToTarget(target):
             robot.getDevice(my_chain.links[res].name).setPosition(ikResults[res])
     print(ikResults)
     return(ikResults)
-#kenimatic helper
+##END OF FUNCTION (kenimaticsToTarget)-------------------------------------------------
+    
+    
+    
+    
+
+#kenimatic helper --------------------------------------------
 #Drake Morley
+
 # takes in: target in form [x(forward/backwards),y(side to side),z(up/down)] see above
+
 #returns: NONE
+
 # helper for kenimaticsToTarget. If you want to put waypoints I recomend doing it here or in main
 # calling .inverse_kinematics at every step will lag the computer
-def armController(target1):
+def kenimaticHelper(target1):
     currentplan = kenimaticsToTarget(target1)
-    
-    
+##END OF FUNCTION (kenimatic helper)-------------------------------------------------
+
+
+
+
+
+#Localization-------------------------------------------------------------------
+#Drake Morley
+
+#takes in: velocity left, velocity right, pose of x,
+#tracker(IE:pose of y before being flipped) pose of theta
+
+#returns: updated pose of x, updated pose of y, updated pose of theta
+#and tracker value for future calculations
+
+# as of current theta is tied to compass after certain errors due to the jerkyness of manual
+# mode. Is possible to tie y and x to it as well if errors get out of hand
 def doOdomatry(vL, vR, pose_x, tracker, pose_theta):
     new_vL = vL
     vL = vL/MAX_SPEED * MAX_SPEED_MS
@@ -215,6 +254,11 @@ def doOdomatry(vL, vR, pose_x, tracker, pose_theta):
     # print(gpsPose_x, gpsPose_y, rad)
     # print("pose",pose_x,pose_y,pose_theta)
     return pose_x,pose_y,pose_theta,tracker
+##END OF FUNCTION (doOdomatry)-------------------------------------------------
+
+
+
+
 
 
 
@@ -224,7 +268,7 @@ gripper_status="open"
 
 while robot.step(timestep) != -1:
     target = [.7,0,.5]
-    overBasketTarget = [.3,0,.5]
+    overBasketTarget = [.3,0,.5] #these cords will take the arm over the basket
     
 
     key = keyboard.getKey()
@@ -245,9 +289,9 @@ while robot.step(timestep) != -1:
         vL = 0
         vR = 0
     elif key == ord('E'):
-        armController([0.3,target[1],target[2]])
+        kenimaticHelper([0.3,target[1],target[2]])
     elif key == ord('D'):
-        armController(target)
+        kenimaticHelper(target)
     elif key == ord('C'):
         if(gripper_status=="open"):
             # Close gripper, note that this takes multiple time steps...
@@ -267,5 +311,6 @@ while robot.step(timestep) != -1:
     
     Tpose_x,Tpose_y,Tpose_theta,tracker = doOdomatry(vL,vR,pose_x,tracker,pose_theta)
     pose_x,pose_y,pose_theta = Tpose_x,Tpose_y,Tpose_theta
+    
     robot_parts["wheel_left_joint"].setVelocity(vL)
     robot_parts["wheel_right_joint"].setVelocity(vR)
