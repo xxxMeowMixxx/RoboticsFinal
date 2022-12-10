@@ -91,7 +91,7 @@ print("done init")
 
 
 
-#Drake Morley Init sensors
+#Drake Morley Init
 sensors = ( #position sensors
 "arm_1_joint_sensor",
 "arm_2_joint_sensor",
@@ -122,7 +122,7 @@ print(my_chain.links)
 
 ken_names = ("head_2_joint", "head_1_joint", "arm_1_joint",
               "arm_2_joint",  "arm_3_joint",  "arm_4_joint",      "arm_5_joint",
-              "arm_6_joint",  "arm_7_joint",  "wheel_left_joint", "wheel_right_joint")
+              "arm_6_joint",  "arm_7_joint", "wheel_left_joint", "wheel_right_joint")
               
               
 for id in range(len(my_chain.links)):
@@ -258,18 +258,32 @@ def doOdomatry(vL, vR, pose_x, tracker, pose_theta):
 
 
 
+arm7 = robot.getDevice("arm_7_joint") #wrist joint
+posArm7 = robot.getDevice("arm_7_joint_sensor") #wrist rotation
 
+arm6 = robot.getDevice("arm_6_joint") #wrist joint
+posArm6 = robot.getDevice("arm_6_joint_sensor") #wrist rotation
+posArm7.enable(timestep)
+posArm6.enable(timestep)
 
-
-
+def validateWristPos(pos):
+    if pos > 2.07:
+        pos = pos -.10
+        pos = -pos
+    if pos < -2.07:
+        pos = pos +.10
+        pos = -pos
+    return pos
 # Main Loop
-robot_parts["torso_lift_joint"].setPosition(0.1)
+robot_parts["torso_lift_joint"].setPosition(0.08)
+torsopos = 0.08
 gripper_status="open"
-
+activeChangingTarget = [.3,0,.5]
 while robot.step(timestep) != -1:
-    target = [.7,0,.5]
+    # target = [.8,0,.5]
+    # lifttarget = [.8,0,.6]
+    # armiin = [.8,.1,.5]
     overBasketTarget = [.3,0,.5] #these cords will take the arm over the basket
-    
 
     key = keyboard.getKey()
     
@@ -288,23 +302,69 @@ while robot.step(timestep) != -1:
     elif key == ord(' '):
         vL = 0
         vR = 0
+    elif key == ord('R'):
+        kenimaticHelper(armiin)
+    elif key == ord('F'):
+        kenimaticHelper(overBasketTarget)
+        activeChangingTarget=overBasketTarget
+        
+        
+        
+        
+        
+        
     elif key == ord('E'):
-        kenimaticHelper([0.3,target[1],target[2]])
+           newPos = posArm6.getValue() + .01
+           newPos = validateWristPos(newPos)
+           arm6.setPosition (newPos)
+    elif key == ord('Q'):
+           newPos = posArm6.getValue() - .01
+           newPos = validateWristPos(newPos)
+           arm6.setPosition (newPos)
+    elif key == ord('W'):
+           temp = [activeChangingTarget[0],activeChangingTarget[1],activeChangingTarget[2]+.01]
+           activeChangingTarget = temp
+           kenimaticHelper(activeChangingTarget)
+    elif key == ord('A'):
+           temp = [activeChangingTarget[0],activeChangingTarget[1]+.01,activeChangingTarget[2]]
+           activeChangingTarget = temp
+           kenimaticHelper(activeChangingTarget)
+    elif key == ord('S'):
+           temp = [activeChangingTarget[0],activeChangingTarget[1],activeChangingTarget[2]-.01]
+           activeChangingTarget = temp
+           kenimaticHelper(activeChangingTarget)
     elif key == ord('D'):
-        kenimaticHelper(target)
+           temp = [activeChangingTarget[0],activeChangingTarget[1]-.01,activeChangingTarget[2]]
+           activeChangingTarget = temp
+           kenimaticHelper(activeChangingTarget)
+    elif key == ord('Z'):
+           temp = [activeChangingTarget[0]+.01,activeChangingTarget[1],activeChangingTarget[2]]
+           activeChangingTarget = temp
+           kenimaticHelper(activeChangingTarget)
+    elif key == ord('X'):
+           temp = [activeChangingTarget[0]-.01,activeChangingTarget[1]-.01,activeChangingTarget[2]]
+           activeChangingTarget = temp
+           kenimaticHelper(activeChangingTarget)
+    elif key == ord('O'):
+           newPos = posArm7.getValue() + .01
+           newPos = validateWristPos(newPos)
+           arm7.setPosition (newPos)
+    elif key == ord('P'):
+           newPos = posArm7.getValue() - .01
+           newPos = validateWristPos(newPos)
+           arm7.setPosition (newPos)
+    elif key == ord('K'):
+           torsopos = torsopos + .001
+           robot_parts["torso_lift_joint"].setPosition(torsopos)
+    elif key == ord('L'):
+           torsopos = torsopos - .001
+           robot_parts["torso_lift_joint"].setPosition(torsopos)
     elif key == ord('C'):
-        if(gripper_status=="open"):
-            # Close gripper, note that this takes multiple time steps...
             robot_parts["gripper_left_finger_joint"].setPosition(0)
             robot_parts["gripper_right_finger_joint"].setPosition(0)
-            if right_gripper_enc.getValue()<=0.005:
-                gripper_status="closed"
-        else:
-            # Open gripper
+    elif key == ord('V'):
             robot_parts["gripper_left_finger_joint"].setPosition(0.045)
             robot_parts["gripper_right_finger_joint"].setPosition(0.045)
-            if left_gripper_enc.getValue()>=0.044:
-                gripper_status="open"
     else: # slow down
         vL *= 0.75
         vR *= 0.75
